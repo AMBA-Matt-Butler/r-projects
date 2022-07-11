@@ -1,0 +1,78 @@
+install.packages("janitor")
+install.packages("plotly")
+library(janitor)
+library(tibble)
+library(dplyr)
+library(tidyr)
+library(viridis)
+library(hrbrthemes)
+library(plotly)
+
+#read data
+df <- read_ods("env0201.ods", range = "A7:AL20")
+
+#drop extra
+df <- df[,-c(1:2)]
+df <- df[,-c(2:6)]
+
+#fill gaps
+names(df)[names(df) == "2019.1"] <- "2019"
+df[13,1] = "TotalD"
+df[12,1] = "TotalNonRoad"
+
+
+#transpose
+df1 <-as.data.frame(t(df))
+
+#redo names
+names(df1) <- as.matrix(df1[1, ])
+df1 <- df1[-1, ]
+df1[] <- lapply(df1, function(x) type.convert(as.character(x)))
+
+#make date a variable
+df1 <- tibble::rownames_to_column(df1, "Date")
+df1$Date<-as.numeric(df1$Date)
+
+#rename
+names(df1)[names(df1) == "Cars and taxis"] <- "Car_T"
+names(df1)[names(df1) == "Heavy goods vehicles"] <- "HGVs"
+names(df1)[names(df1) == "Light vans"] <- "Vans"
+names(df1)[names(df1) == "Buses and coaches"] <- "Bus_Coach"
+names(df1)[names(df1) == "Motorcycles & mopeds"] <- "Motorbikes"
+names(df1)[names(df1) == "Other road transport emissions3"] <- "OtherRoad"
+names(df1)[names(df1) == "Total"] <- "TotalRoad"
+names(df1)[names(df1) == "Rail4"] <- "Rail"
+names(df1)[names(df1) == "Domestic aviation"] <- "DomAvi"
+names(df1)[names(df1) == "Domestic shipping"] <- "DomShip"
+names(df1)[names(df1) == "Other5"] <- "OtherNonRoad"
+names(df1)[names(df1) == "TotalD"] <- "Total"
+
+#convert to long
+df2<-df1
+long<- df2 %>%  gather(Date, Total)
+names(long)[names(long) == "Date"] <- "Type"
+long$Date <- rep(1990:2019, times=12)
+
+#reorder columsn
+long <-long[,c(3,1,2)]
+
+#drop totals
+long <- long[-c(181:210),]
+long <- long[-c(301:330),]
+row.names(long) <- NULL
+
+long1 <- transform(long, variables=reorder(Type, Total))
+
+longper<-long1
+
+
+Total_plot<-ggplot(long1, aes(x = Date, y= Total, fill=variables))+
+  geom_area()+
+  scale_fill_viridis(discrete = TRUE)+
+  theme_bw()
+
+Emissions_by_Vehicle_Type <- ggplotly(Total_plot)
+
+
+htmlwidgets::saveWidget(Emissions_by_Vehicle_Type, file = "Emissions_by_Vehicle_Type.html")
+
